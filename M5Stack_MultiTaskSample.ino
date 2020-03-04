@@ -113,7 +113,6 @@ void setup()
   lcd_queue = xQueueCreate( 1, sizeof(lcd_update_t));
   xTaskCreatePinnedToCore(core1_task, "core1_task", 8192, NULL, 10, NULL, 1);
   xTaskCreatePinnedToCore(core0_task, "core0_task", 4096, NULL, 5, NULL, 0);
-  double pi = 0;
 }
 
 // the loop routine runs over and over again forever
