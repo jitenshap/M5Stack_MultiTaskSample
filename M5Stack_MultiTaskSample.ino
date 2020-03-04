@@ -1,9 +1,11 @@
 #include <M5Stack.h>
 
 TaskHandle_t core0_task_handle;
-EventGroupHandle_t core0_event_group;
+EventGroupHandle_t lcd_event_group;
 SemaphoreHandle_t global_mutex = NULL;
 QueueHandle_t lcd_queue;
+
+int NYAN_END_BIT = BIT0;
 
 typedef struct lcd_update_t
 {
@@ -40,11 +42,41 @@ bool lock_global(TickType_t xTicksToWait)
   }
 }
 
-void core0_task(void* arg)
+void slow_task(void *pvParameters)
+{
+  for(int i = 0; i < 5; i ++)
+  {
+    lcd_update_t payload;
+    if(i == 0)
+      payload.cls= true;
+    else
+      payload.cls = false;
+    payload.x = 0;
+    payload.y = i * 40;
+    sprintf(payload.msg, "nya-n");
+    xQueueSend(lcd_queue, &payload, 5000 / portTICK_PERIOD_MS);
+    delay(1000);
+  }
+  xEventGroupSetBits(lcd_event_group, NYAN_END_BIT);  
+  vTaskDelete(NULL);
+}
+
+void core0_task(void *pvParameters)
 {
   while(true)
   {
     delay(1000);
+    xEventGroupClearBits(lcd_event_group, NYAN_END_BIT);
+    xTaskCreatePinnedToCore(&slow_task, "slow_task", 1024, NULL, 3, &core0_task_handle, 0);
+    EventBits_t uxBits = xEventGroupWaitBits(lcd_event_group, NYAN_END_BIT, pdFALSE, pdTRUE, 10000 / portTICK_PERIOD_MS);
+    if(uxBits & NYAN_END_BIT)
+    {
+      Serial.println("slowTask end");
+    }
+    else
+    {
+      Serial.println("slowTask timed out");
+    }    
     lcd_update_t payload;
     payload.cls = true;
     payload.x = 0;
@@ -59,6 +91,7 @@ void core0_task(void* arg)
   }
 }
 
+
 // the setup routine runs once when M5Stack starts up
 void setup()
 {
@@ -71,22 +104,32 @@ void setup()
   M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
   M5.Lcd.setTextFont(4);
   M5.Lcd.print("Hello");
-  core0_event_group = xEventGroupCreate();
+  lcd_event_group = xEventGroupCreate();
   global_mutex = xSemaphoreCreateMutex();
   lcd_queue = xQueueCreate( 1, sizeof(lcd_update_t));
-  xTaskCreatePinnedToCore(core0_task, "core0_task", 4096, NULL, 2, &core0_task_handle, 0);
+  xTaskCreatePinnedToCore(&core1_task, "core1_task", 8192, NULL, 10, &core0_task_handle, 1);
+  xTaskCreatePinnedToCore(&core0_task, "core0_task", 4096, NULL, 5, &core0_task_handle, 0);
+  double pi = 0;
 }
 
 // the loop routine runs over and over again forever
-void loop() //Core1 task
+
+void core1_task(void *pvParameters)
 {
-  lcd_update_t lcdbuf;
-  if( xQueueReceive(lcd_queue, &lcdbuf, (TickType_t)1) == pdTRUE)
-  {
-    Serial.println("Got queue");
-    M5.Lcd.setCursor(lcdbuf.x, lcdbuf.y);
-    if(lcdbuf.cls)
-      M5.Lcd.fillScreen(TFT_BLACK);
-    M5.Lcd.print(lcdbuf.msg);
+  while(true)
+  {  
+    lcd_update_t lcdbuf;
+    if( xQueueReceive(lcd_queue, &lcdbuf, (TickType_t)1) == pdTRUE)
+    {
+      Serial.println("Got queue");
+      M5.Lcd.setCursor(lcdbuf.x, lcdbuf.y);
+      if(lcdbuf.cls)
+        M5.Lcd.fillScreen(TFT_BLACK);
+      M5.Lcd.print(lcdbuf.msg);
+    }  
   }
+}
+
+void loop()
+{
 }
