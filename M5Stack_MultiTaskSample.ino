@@ -1,6 +1,6 @@
 #include <M5Stack.h>
 
-TaskHandle_t core0_task_handle;
+TaskHandle_t nyan_task_handle;
 EventGroupHandle_t lcd_event_group;
 SemaphoreHandle_t global_mutex = NULL;
 QueueHandle_t lcd_queue;
@@ -67,7 +67,7 @@ void core0_task(void *pvParameters)
   {
     delay(1000);
     xEventGroupClearBits(lcd_event_group, NYAN_END_BIT);
-    xTaskCreatePinnedToCore(&slow_task, "slow_task", 1024, NULL, 3, &core0_task_handle, 0);
+    xTaskCreatePinnedToCore(&slow_task, "slow_task", 1024, NULL, 3, &nyan_task_handle, 1);
     EventBits_t uxBits = xEventGroupWaitBits(lcd_event_group, NYAN_END_BIT, pdFALSE, pdTRUE, 10000 / portTICK_PERIOD_MS);
     if(uxBits & NYAN_END_BIT)
     {
@@ -76,6 +76,10 @@ void core0_task(void *pvParameters)
     else
     {
       Serial.println("slowTask timed out");
+      if(eTaskGetState(nyan_task_handle) == eRunning)
+      {
+        vTaskDelete(nyan_task_handle);
+      }      
     }    
     lcd_update_t payload;
     payload.cls = true;
@@ -107,8 +111,8 @@ void setup()
   lcd_event_group = xEventGroupCreate();
   global_mutex = xSemaphoreCreateMutex();
   lcd_queue = xQueueCreate( 1, sizeof(lcd_update_t));
-  xTaskCreatePinnedToCore(&core1_task, "core1_task", 8192, NULL, 10, &core0_task_handle, 1);
-  xTaskCreatePinnedToCore(&core0_task, "core0_task", 4096, NULL, 5, &core0_task_handle, 0);
+  xTaskCreatePinnedToCore(core1_task, "core1_task", 8192, NULL, 10, NULL, 1);
+  xTaskCreatePinnedToCore(core0_task, "core0_task", 4096, NULL, 5, NULL, 0);
   double pi = 0;
 }
 
