@@ -53,7 +53,7 @@ void slow_task(void *pvParameters)
     else
       payload.cls = false;
     payload.x = 0;
-    payload.y = i * 40;
+    payload.y = i * 50;
     strcpy(payload.msg, message);
     xQueueSend(lcd_queue, &payload, 5000 / portTICK_PERIOD_MS);
     delay(1000);
