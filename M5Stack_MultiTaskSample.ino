@@ -44,6 +44,7 @@ bool lock_global(TickType_t xTicksToWait)
 
 void slow_task(void *pvParameters)
 {
+  char * message = (char *)pvParameters;
   for(int i = 0; i < 5; i ++)
   {
     lcd_update_t payload;
@@ -53,7 +54,7 @@ void slow_task(void *pvParameters)
       payload.cls = false;
     payload.x = 0;
     payload.y = i * 40;
-    sprintf(payload.msg, "nya-n");
+    strcpy(payload.msg, message);
     xQueueSend(lcd_queue, &payload, 5000 / portTICK_PERIOD_MS);
     delay(1000);
   }
@@ -67,7 +68,9 @@ void core0_task(void *pvParameters)
   {
     delay(1000);
     xEventGroupClearBits(lcd_event_group, NYAN_END_BIT);
-    xTaskCreatePinnedToCore(&slow_task, "slow_task", 1024, NULL, 3, &nyan_task_handle, 1);
+    char message[16];
+    sprintf(message, "nya-n");
+    xTaskCreatePinnedToCore(&slow_task, "slow_task", 1024, message, 3, &nyan_task_handle, 1);
     EventBits_t uxBits = xEventGroupWaitBits(lcd_event_group, NYAN_END_BIT, pdFALSE, pdTRUE, 10000 / portTICK_PERIOD_MS);
     if(uxBits & NYAN_END_BIT)
     {
@@ -113,6 +116,7 @@ void setup()
   lcd_queue = xQueueCreate( 1, sizeof(lcd_update_t));
   xTaskCreatePinnedToCore(core1_task, "core1_task", 8192, NULL, 10, NULL, 1);
   xTaskCreatePinnedToCore(core0_task, "core0_task", 4096, NULL, 5, NULL, 0);
+  double pi = 0;
 }
 
 // the loop routine runs over and over again forever
